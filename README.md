@@ -7,7 +7,7 @@ Very minimal with additional features planed.
 ## Features
 
 - Fast and lightweight logging.
-- Built with an Data-driven approach for flexibility and performance.
+- Built with a Data-driven approach for flexibility and performance.
 
 ## Additional functionality coming soon
 - Log Rotate
