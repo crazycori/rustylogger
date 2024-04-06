@@ -1,0 +1,4 @@
+Config(
+    max_log_size: 1024,
+    rotation_count: 3,
+)
