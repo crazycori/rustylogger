@@ -1,8 +1,12 @@
+
+mod components;
+
 use chrono::Local;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
+use std::path::Components;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
@@ -103,9 +107,11 @@ async fn listener_system(world: Arc<Mutex<World>>) {
     let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
     println!("Listening for incoming logs...");
 
+
     loop {
         let (socket, _) = listener.accept().await.unwrap();
         let world_clone = world.clone();
+        let config = load_config.clone();
         tokio::spawn(async move {
             handle_client(socket, world_clone).await;
         });
@@ -143,4 +149,10 @@ async fn handle_client(mut socket: tokio::net::TcpStream, _world: Arc<Mutex<Worl
         }
         buffer.clear();
     }
+}
+
+async fn load_config() -> components::Config {
+    let file = File::open("config.toml").expect("Failed to open config file");
+    let config: components::Config = serde_json::from_reader(file).expect("Failed to parse config file");
+    config
 }
