@@ -1,4 +1,3 @@
-
 mod components;
 
 use chrono::Local;
@@ -47,6 +46,18 @@ async fn log_system(world: &mut World, level: LogLevel, message_text: String) {
     world.create_log(timestamp, level, message);
 }
 
+// Log level
+async fn log_level_system(world: &World, level: LogLevel, include_kernel_logs: bool) -> Vec<Log> {
+    world.entities.iter().filter(|&log_id| {
+        let is_kernel_log = world.messages[log_id].0.starts_with("kernel:");
+        let has_correct_level = world.levels[log_id].0 == level;
+        (include_kernel_logs && is_kernel_log) || (!is_kernel_log && has_correct_level)
+    }).copied().collect()
+}
+
+
+
+
 // Main function and network listener
 #[tokio::main]
 async fn main() {
@@ -55,49 +66,58 @@ async fn main() {
 
     {
         let mut world = world.lock().await;
+
+        // Add some logs to the world
         log_system(&mut world, LogLevel::Info, "This is an info message".to_string()).await;
         log_system(&mut world, LogLevel::Warning, "This is a warning message".to_string()).await;
         log_system(&mut world, LogLevel::Error, "This is an error message".to_string()).await;
+        log_system(&mut world, LogLevel::Critical, "This is a critical message".to_string()).await;
+
+
+        let _ = listener_task.await;
     }
 
-    let _ = listener_task.await;
-}
-
-async fn listener_system(world: Arc<Mutex<World>>) {
-    let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
-    println!("Listening for incoming logs...");
+    async fn listener_system(world: Arc<Mutex<World>>) {
+        let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
+        println!("Listening for incoming logs...");
 
 
-    loop {
-        let (socket, _) = listener.accept().await.unwrap();
-        let world_clone = world.clone();
-        tokio::spawn(async move {
-            handle_client(socket, world_clone).await;
-        });
-    }
-}
-
-async fn handle_client(mut socket: tokio::net::TcpStream, _world: Arc<Mutex<World>>) {
-    let mut reader = BufReader::new(&mut socket);
-    let mut buffer = String::new();
-
-    while reader.read_line(&mut buffer).await.unwrap() > 0 {
-        // Log received from
-        println!("Received log: {}", buffer.trim());
-
-        // Write log to file
-       OpenOptions::new()
-            .create(true)
-            .append(true);
-
-        // Create a new log file if it doesn't exist
-        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open("logs.txt") {
-            let log_message = buffer.trim();
-            if let Err(e) = writeln!(file, "{}", log_message) {
-                eprintln!("Failed to write to file: {}", e);
-            }
+        loop {
+            let (socket, _) = listener.accept().await.unwrap();
+            let world_clone = world.clone();
+            tokio::spawn(async move {
+                handle_client(socket, world_clone).await;
+            });
         }
+    }
 
-        buffer.clear();
+    async fn handle_client(mut socket: tokio::net::TcpStream, _world: Arc<Mutex<World>>) {
+        let mut reader = BufReader::new(&mut socket);
+        let mut buffer = String::new();
+
+        while reader.read_line(&mut buffer).await.unwrap() > 0 {
+            // Log received from
+            println!("Received log: {}", buffer.trim());
+
+            // Append Kernel to Kernel Logs
+            if buffer.contains("kernel") {
+                buffer = format!("KERNEL: {}", buffer);
+            }
+
+            // Write log to file
+            OpenOptions::new()
+                .create(true)
+                .append(true);
+
+            // Create a new log file if it doesn't exist
+            if let Ok(mut file) = OpenOptions::new().create(true).append(true).open("logs.txt") {
+                let log_message = buffer.trim();
+                if let Err(e) = writeln!(file, "{}", log_message) {
+                    eprintln!("Failed to write to file: {}", e);
+                }
+            }
+
+            buffer.clear();
+        }
     }
 }
