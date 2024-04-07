@@ -5,6 +5,14 @@ use crate::Log;
 
 // Components
 #[derive(Deserialize)]
+pub struct Timer {
+    pub(crate) duration: u64,
+    pub(crate) elapsed: u64,
+}
+
+
+
+#[derive(Deserialize)]
 pub struct Config {
     pub(crate) log_file_path: String,
     pub(crate) max_log_size: u64, // in bytes

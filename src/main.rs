@@ -1,5 +1,6 @@
 
 mod components;
+mod notifier;
 
 use chrono::Local;
 use serde::Deserialize;
@@ -12,6 +13,7 @@ use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use smallvec::SmallVec;
 use crate::components::*;
+use crate::notifier::watch_file_changes;
 
 
 // Log
@@ -65,17 +67,23 @@ async fn main() {
 
 async fn listener_system(world: Arc<Mutex<World>>) {
     let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
-    println!("Listening for incoming logs...");
+    let (tx, mut rx) = tokio::sync::mpsc::channel(100);
+    println!("Listening for incoming logs on 127.0.0.1:8080");
 
-
-    loop {
-        let (socket, _) = listener.accept().await.unwrap();
+    while let Ok((socket, _)) = listener.accept().await {
         let world_clone = world.clone();
-        tokio::spawn(async move {
-            handle_client(socket, world_clone).await;
-        });
+        tokio::spawn(handle_client(socket, world_clone));
     }
+
+    // Watch for file changes
+    let notifier_task = tokio::spawn(watch_file_changes(tx));
+
+    while let Some(event) = rx.recv().await {
+        println!("Received event: {:?}", event);
+    }
+
 }
+
 
 async fn handle_client(mut socket: tokio::net::TcpStream, _world: Arc<Mutex<World>>) {
     let mut reader = BufReader::new(&mut socket);
