@@ -66,14 +66,6 @@ async fn main() {
 
     {
         let mut world = world.lock().await;
-
-        // Add some logs to the world
-        log_system(&mut world, LogLevel::Info, "This is an info message".to_string()).await;
-        log_system(&mut world, LogLevel::Warning, "This is a warning message".to_string()).await;
-        log_system(&mut world, LogLevel::Error, "This is an error message".to_string()).await;
-        log_system(&mut world, LogLevel::Critical, "This is a critical message".to_string()).await;
-
-
         let _ = listener_task.await;
     }
 
@@ -109,8 +101,10 @@ async fn main() {
                 .create(true)
                 .append(true);
 
-            // Create a new log file if it doesn't exist
-            if let Ok(mut file) = OpenOptions::new().create(true).append(true).open("logs.txt") {
+            // Rotate log file by day
+            let day = Local::now().format("%Y-%m-%d").to_string();
+            let log_file_path = format!("logs-{}.txt", day);
+            if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(log_file_path) {
                 let log_message = buffer.trim();
                 if let Err(e) = writeln!(file, "{}", log_message) {
                     eprintln!("Failed to write to file: {}", e);
